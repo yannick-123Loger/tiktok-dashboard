@@ -2,7 +2,7 @@
 type AirtableRecord<T> = { id: string; fields: T };
 
 export type PostFields = {
-  creator_key: string;
+  creator_slug: string;
   video_url: string;
   title: string;
   status: "draft" | "publishing" | "published" | "failed";
@@ -25,13 +25,13 @@ function headers() {
   };
 }
 
-export async function listDraftPosts(creator_key: string) {
+export async function listDraftPosts(creator_slug: string) {
   const baseId = mustEnv("AIRTABLE_BASE_ID");
   const table = mustEnv("AIRTABLE_POSTS_TABLE");
 
-  // Airtable formula: AND({creator_key}="toulouse",{status}="draft")
+  // Airtable formula: AND({creator_slug}="toulouse",{status}="draft")
   const filter = encodeURIComponent(
-    `AND({creator_key}="${creator_key}",{status}="draft")`
+    `AND({creator_slug}="${creator_slug}",{status}="draft")`
   );
 
   const url = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
