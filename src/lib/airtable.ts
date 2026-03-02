@@ -31,6 +31,21 @@ function airtableHeaders() {
   };
 }
 
+export async function getCreatorByKey(creator_key: string) {
+  const baseId = mustEnv("AIRTABLE_BASE_ID");
+  const table = mustEnv("AIRTABLE_CREATORS_TABLE");
+
+  const filter = encodeURIComponent(`{creator_key}="${creator_key}"`);
+  const url = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
+    table
+  )}?filterByFormula=${filter}&maxRecords=1`;
+
+  const res = await fetch(url, { headers: airtableHeaders() });
+  const json = await res.json();
+
+  return json.records?.[0] ?? null;
+}
+
 export async function upsertCreatorByKey(fields: CreatorFields) {
   const baseId = mustEnv("AIRTABLE_BASE_ID");
   const table = mustEnv("AIRTABLE_CREATORS_TABLE");

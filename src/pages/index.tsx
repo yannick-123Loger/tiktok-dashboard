@@ -5,11 +5,11 @@ import { useRouter } from "next/router";
 export default function Dashboard() {
   const router = useRouter();
 
-  // valeur sélectionnée dans l'UI (dropdown)
   const [selectedCreatorKey, setSelectedCreatorKey] = useState("toulouse");
+  const [isConnected, setIsConnected] = useState(false);
 
-  // valeurs venant du redirect OAuth
   const connected = router.query.connected === "1";
+
   const oauthError =
     typeof router.query.error === "string" ? router.query.error : null;
 
@@ -18,11 +18,31 @@ export default function Dashboard() {
     return typeof v === "string" ? v : null;
   }, [router.query.creator_key]);
 
+  // si on arrive du callback avec creator_key, on le met dans le select
   useEffect(() => {
     if (connectedCreatorKey) {
       setSelectedCreatorKey(connectedCreatorKey);
     }
   }, [connectedCreatorKey]);
+
+  // check Airtable status pour la ville sélectionnée
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const r = await fetch(
+          `/api/creator-status?creator_key=${encodeURIComponent(
+            selectedCreatorKey
+          )}`
+        );
+        const data = await r.json();
+        setIsConnected(!!data?.is_connected);
+      } catch {
+        setIsConnected(false);
+      }
+    }
+
+    checkStatus();
+  }, [selectedCreatorKey]);
 
   return (
     <main style={{ maxWidth: 720, margin: "40px auto", padding: 16 }}>
@@ -76,21 +96,43 @@ export default function Dashboard() {
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <a
-          href={`/api/oauth/start?creator_key=${encodeURIComponent(
-            selectedCreatorKey
-          )}`}
-          style={{
-            display: "inline-block",
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #000",
-            textDecoration: "none",
-            fontWeight: 600,
-          }}
-        >
-          Continue with TikTok
-        </a>
+        {isConnected ? (
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div>✅ Already connected</div>
+
+            <a
+              href={`/api/oauth/start?creator_key=${encodeURIComponent(
+                selectedCreatorKey
+              )}`}
+              style={{
+                display: "inline-block",
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid #000",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              Reconnect
+            </a>
+          </div>
+        ) : (
+          <a
+            href={`/api/oauth/start?creator_key=${encodeURIComponent(
+              selectedCreatorKey
+            )}`}
+            style={{
+              display: "inline-block",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #000",
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            Continue with TikTok
+          </a>
+        )}
       </div>
     </main>
   );
