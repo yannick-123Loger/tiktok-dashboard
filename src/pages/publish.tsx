@@ -76,41 +76,42 @@ export default function PublishPage() {
     consent &&
     (!commercial || (commercial && (brandSelf || brandThirdParty))); // if commercial turned on, require at least one checkbox
 
-  async function publishNow() {
-    if (!selected) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch(`/api/tiktok/publish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creator_key: creatorKey,
-          post_record_id: selected.id,
-          video_url: selected.video_url,
-          post_info: {
-            title,
-            privacy_level: privacyLevel,
-            comment_disabled: !allowComments,
-            disable_duet: !allowDuet,
-            disable_stitch: !allowStitch,
-            // commercial disclosure (you can map it to TikTok fields later if needed)
-            commercial: commercial ? { brandSelf, brandThirdParty } : null,
-          },
-        }),
-      });
+async function publishNow() {
+  if (!selected) return;
 
-      const j = await r.json();
-      if (!r.ok || !j.ok) throw new Error(j.details || j.error || "publish_failed");
+  setLoading(true);
+  setError(null);
 
-      await load();
-      alert("Publish triggered. It may take a few minutes to appear on TikTok.");
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
-    }
+  try {
+    const r = await fetch("/api/tiktok/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        post_record_id: selected.id,     // ✅ record Airtable (= id dans ta liste)
+        creator_slug: creatorKey,        // ✅ la ville (toulouse)
+        // bonus: on envoie aussi les métadonnées choisies
+        title,
+        privacy_level: privacyLevel,
+        allow_comments: allowComments,
+        allow_duet: allowDuet,
+        allow_stitch: allowStitch,
+        commercial,
+        brand_self: brandSelf,
+        brand_third_party: brandThirdParty,
+      }),
+    });
+
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.details || j.error || "publish_failed");
+
+    await load();
+    alert("Publish triggered. It may take a few minutes to appear on TikTok.");
+  } catch (e: any) {
+    setError(e?.message || String(e));
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <main style={{ maxWidth: 920, margin: "40px auto", padding: 16 }}>
