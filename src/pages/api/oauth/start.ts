@@ -17,9 +17,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-  const normalizedBaseUrl = baseUrl?.replace(/\/+$/, "");
 
-  if (!clientKey || typeof creatorKey !== "string" || !normalizedBaseUrl) {
+  if (!clientKey || typeof creatorKey !== "string" || !baseUrl) {
     return res.status(400).json({ error: "invalid_request" });
   }
 
@@ -29,7 +28,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const codeChallenge = toBase64Url(
     crypto.createHash("sha256").update(codeVerifier).digest(),
   );
-  const isSecure = normalizedBaseUrl.startsWith("https://");
+  const isSecure = baseUrl.startsWith("https://");
   const cookieAttrs = `Path=/; HttpOnly; SameSite=Lax; Max-Age=600${isSecure ? "; Secure" : ""}`;
 
   res.setHeader("Set-Cookie", [
@@ -37,7 +36,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     `tt_pkce=${codeVerifier}; ${cookieAttrs}`,
   ]);
 
-  const redirectUri = `${normalizedBaseUrl}/api/oauth/callback`;
+  const redirectUri = `${baseUrl}/api/oauth/callback`;
 
   const params = new URLSearchParams({
     client_key: clientKey,
