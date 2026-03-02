@@ -53,8 +53,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // IMPORTANT: ne jamais afficher les tokens. On redirige.
-    return res.redirect(302, `/?connected=1&creator_key=${encodeURIComponent(creator_key)}`);
-  } catch (e: any) {
+return res.redirect(
+  302,
+  `/publish?connected=1&creator_key=${encodeURIComponent(creator_key)}`
+);  } catch (e: any) {
     // Log détaillé côté Vercel
     console.error("OAuth callback error:", e?.response?.data || e?.message || e);
 
