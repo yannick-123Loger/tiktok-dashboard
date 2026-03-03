@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { updatePost } from "@/lib/airtablePosts";
+import { getCreatorBySlug } from "@/lib/airtable";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -15,11 +16,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: "missing_creator_slug" });
     }
 
-    // ✅ (temp) token via env pour valider le flow
-    const ACCESS_TOKEN = process.env.TIKTOK_TEST_ACCESS_TOKEN;
-    if (!ACCESS_TOKEN) {
-      return res.status(500).json({ ok: false, error: "missing_test_access_token" });
-    }
+    const creator = await getCreatorBySlug(creator_slug);
+
+if (!creator?.access_token) {
+  return res.status(400).json({ ok: false, error: "missing_creator_access_token" });
+}
+
+const ACCESS_TOKEN = creator.access_token;
 
     console.log("publish:start", { post_record_id, creator_slug });
 

@@ -95,3 +95,27 @@ export async function upsertCreatorByKey(fields: CreatorFields) {
   }
   return await postRes.json();
 }
+// src/lib/airtable.ts
+
+export async function getCreatorBySlug(creator_slug: string) {
+  const baseId = mustEnv("AIRTABLE_BASE_ID");
+  const table = mustEnv("AIRTABLE_CREATORS_TABLE");
+
+  // Find record by creator_slug
+  const filter = encodeURIComponent(`{creator_slug}="${creator_slug}"`);
+  const url = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
+    table
+  )}?filterByFormula=${filter}&maxRecords=1`;
+
+  const res = await fetch(url, { headers: airtableHeaders() });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Airtable getCreatorBySlug failed: ${res.status} ${txt}`);
+  }
+
+  const json = (await res.json()) as { records: AirtableRecord<CreatorFields>[] };
+  const record = json.records?.[0];
+  if (!record) return null;
+
+  return { id: record.id, ...record.fields };
+}
