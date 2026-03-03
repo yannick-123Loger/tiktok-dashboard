@@ -18,13 +18,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: "missing_creator_access_token" });
     }
 
-    const post = await getPostById(post_record_id);
-    if (!post?.video_url) {
-      return res.status(400).json({ ok: false, error: "missing_video_url" });
-    }
+const post = await getPostById(String(post_record_id));
+if (!post?.fields?.video_url) {
+  return res.status(400).json({ ok: false, error: "missing_video_url" });
+}
 
+const videoUrl = post.fields.video_url;
+const title = post.fields.title || "Draft from dashboard";
     const ACCESS_TOKEN = creator.access_token;
-    const videoUrl = post.video_url;
 
     console.log("publish:start", { post_record_id, creator_key, videoUrl });
 
@@ -34,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // INIT via PULL_FROM_URL (aligné avec ton cas serveur)
     const payload = {
       post_info: {
-        title: post.title || "Draft from dashboard",
+        title,
         privacy_level: "SELF_ONLY",
         disable_duet: true,
         disable_stitch: true,
