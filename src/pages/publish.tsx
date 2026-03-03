@@ -87,9 +87,9 @@ async function publishNow() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        post_record_id: selected.id,     // ✅ record Airtable (= id dans ta liste)
-        creator_slug: creatorKey,        // ✅ la ville (toulouse)
-        // bonus: on envoie aussi les métadonnées choisies
+        post_record_id: selected.id,
+        creator_key: creatorKey, // ou creator_slug si tu as standardisé
+        // + tu peux envoyer les champs UX si tu veux:
         title,
         privacy_level: privacyLevel,
         allow_comments: allowComments,
