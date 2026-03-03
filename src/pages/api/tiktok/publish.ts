@@ -58,8 +58,8 @@ const title = post.fields.title || "Draft from dashboard";
     });
 
     const initTxt = await initRes.text();
-    console.log("publish:init_status", initRes.status);
-    console.log("publish:init_body", initTxt.slice(0, 800));
+    console.log("publish:init_http_status", initRes.status);
+    console.log("publish:init_body_head", initTxt.slice(0, 800));
 
     if (!initRes.ok) {
       await updatePost(post_record_id, { status: "failed" });
