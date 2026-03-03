@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { updatePost } from "@/lib/airtablePosts";
-import { getCreatorBySlug } from "@/lib/airtable";
+import { getCreatorByKey } from "@/lib/airtable";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -8,15 +8,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ ok: false, error: "method_not_allowed" });
     }
 
-    const { post_record_id, creator_slug, video_size } = req.body || {};
+    const { post_record_id, creator_key, video_size } = req.body || {};
     if (!post_record_id) {
       return res.status(400).json({ ok: false, error: "missing_post_record_id" });
     }
-    if (!creator_slug) {
+    if (!creator_key) {
       return res.status(400).json({ ok: false, error: "missing_creator_slug" });
     }
 
-    const creator = await getCreatorBySlug(creator_slug);
+    const creator = await getCreatorByKey(creator_key);
 
 if (!creator?.access_token) {
   return res.status(400).json({ ok: false, error: "missing_creator_access_token" });
@@ -24,7 +24,7 @@ if (!creator?.access_token) {
 
 const ACCESS_TOKEN = creator.access_token;
 
-    console.log("publish:start", { post_record_id, creator_slug });
+    console.log("publish:start", { post_record_id, creator_key });
 
     // 1) UX: mark as publishing immediately
     await updatePost(post_record_id, { status: "publishing" });

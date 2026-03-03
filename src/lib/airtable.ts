@@ -1,11 +1,11 @@
 // src/lib/airtable.ts
-type AirtableRecord<T> = {
+export type AirtableRecord<T> = {
   id: string;
   fields: T;
 };
 
-type CreatorFields = {
-  creator_key: string;
+export type CreatorFields = {
+  creator_key: string;          // ex: "toulouse"
   open_id?: string;
   access_token?: string;
   refresh_token?: string;
@@ -35,15 +35,24 @@ export async function getCreatorByKey(creator_key: string) {
   const baseId = mustEnv("AIRTABLE_BASE_ID");
   const table = mustEnv("AIRTABLE_CREATORS_TABLE");
 
+  // IMPORTANT: le champ Airtable doit s'appeler EXACTEMENT "creator_key"
   const filter = encodeURIComponent(`{creator_key}="${creator_key}"`);
   const url = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
     table
   )}?filterByFormula=${filter}&maxRecords=1`;
 
   const res = await fetch(url, { headers: airtableHeaders() });
-  const json = await res.json();
+  const txt = await res.text();
 
-  return json.records?.[0] ?? null;
+  if (!res.ok) {
+    throw new Error(`Airtable getCreatorByKey failed: ${res.status} ${txt}`);
+  }
+
+  const json = JSON.parse(txt) as { records: AirtableRecord<CreatorFields>[] };
+  const record = json.records?.[0];
+  if (!record) return null;
+
+  return { id: record.id, ...record.fields };
 }
 
 export async function upsertCreatorByKey(fields: CreatorFields) {
@@ -57,15 +66,19 @@ export async function upsertCreatorByKey(fields: CreatorFields) {
   )}?filterByFormula=${filter}&maxRecords=1`;
 
   const findRes = await fetch(findUrl, { headers: airtableHeaders() });
-  const findJson = (await findRes.json()) as { records: AirtableRecord<CreatorFields>[] };
+  const findTxt = await findRes.text();
+
+  if (!findRes.ok) {
+    throw new Error(`Airtable FIND failed: ${findRes.status} ${findTxt}`);
+  }
+
+  const findJson = JSON.parse(findTxt) as { records: AirtableRecord<CreatorFields>[] };
 
   if (findJson.records?.length) {
     const recordId = findJson.records[0].id;
 
     // 2) PATCH existing
-    const patchUrl = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
-      table
-    )}/${recordId}`;
+    const patchUrl = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
     const patchRes = await fetch(patchUrl, {
       method: "PATCH",
@@ -73,11 +86,11 @@ export async function upsertCreatorByKey(fields: CreatorFields) {
       body: JSON.stringify({ fields }),
     });
 
+    const patchTxt = await patchRes.text();
     if (!patchRes.ok) {
-      const txt = await patchRes.text();
-      throw new Error(`Airtable PATCH failed: ${patchRes.status} ${txt}`);
+      throw new Error(`Airtable PATCH failed: ${patchRes.status} ${patchTxt}`);
     }
-    return await patchRes.json();
+    return JSON.parse(patchTxt);
   }
 
   // 3) POST new
@@ -89,33 +102,9 @@ export async function upsertCreatorByKey(fields: CreatorFields) {
     body: JSON.stringify({ fields }),
   });
 
+  const postTxt = await postRes.text();
   if (!postRes.ok) {
-    const txt = await postRes.text();
-    throw new Error(`Airtable POST failed: ${postRes.status} ${txt}`);
+    throw new Error(`Airtable POST failed: ${postRes.status} ${postTxt}`);
   }
-  return await postRes.json();
-}
-// src/lib/airtable.ts
-
-export async function getCreatorBySlug(creator_slug: string) {
-  const baseId = mustEnv("AIRTABLE_BASE_ID");
-  const table = mustEnv("AIRTABLE_CREATORS_TABLE");
-
-  // Find record by creator_slug
-  const filter = encodeURIComponent(`{creator_slug}="${creator_slug}"`);
-  const url = `${AIRTABLE_API}/${baseId}/${encodeURIComponent(
-    table
-  )}?filterByFormula=${filter}&maxRecords=1`;
-
-  const res = await fetch(url, { headers: airtableHeaders() });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Airtable getCreatorBySlug failed: ${res.status} ${txt}`);
-  }
-
-  const json = (await res.json()) as { records: AirtableRecord<CreatorFields>[] };
-  const record = json.records?.[0];
-  if (!record) return null;
-
-  return { id: record.id, ...record.fields };
+  return JSON.parse(postTxt);
 }
