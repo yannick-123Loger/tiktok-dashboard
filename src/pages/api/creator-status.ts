@@ -11,6 +11,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const creator = await getCreatorByKey(creator_key);
 
   return res.status(200).json({
-    is_connected: !!creator?.fields?.is_connected,
+    is_connected: !!creator?.is_connected,
   });
 }
