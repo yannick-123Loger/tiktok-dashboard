@@ -1,3 +1,4 @@
+// src/pages/publish.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -10,8 +11,18 @@ type Post = {
   created_at?: string;
 };
 
+function statusLabel(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (s === "draft") return { text: "Draft", cls: "bg-zinc-800 text-zinc-200 border-zinc-700" };
+  if (s === "publishing") return { text: "Publishing", cls: "bg-yellow-500/15 text-yellow-200 border-yellow-500/30" };
+  if (s === "published") return { text: "Published", cls: "bg-green-500/15 text-green-200 border-green-500/30" };
+  if (s === "failed") return { text: "Failed", cls: "bg-red-500/15 text-red-200 border-red-500/30" };
+  return { text: status || "Unknown", cls: "bg-zinc-800 text-zinc-200 border-zinc-700" };
+}
+
 export default function PublishPage() {
   const router = useRouter();
+
   const creatorKey = useMemo(() => {
     const q = router.query.creator_key;
     return typeof q === "string" && q.length ? q : "toulouse";
@@ -21,12 +32,12 @@ export default function PublishPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // form state for the selected post
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = posts.find((p) => p.id === selectedId) || null;
 
+  // Form state
   const [title, setTitle] = useState("");
-  const [privacyLevel, setPrivacyLevel] = useState<string>(""); // must be user-selected, no default
+  const [privacyLevel, setPrivacyLevel] = useState<string>(""); // no default
   const [allowComments, setAllowComments] = useState(false);
   const [allowDuet, setAllowDuet] = useState(false);
   const [allowStitch, setAllowStitch] = useState(false);
@@ -39,11 +50,27 @@ export default function PublishPage() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`/api/posts/list?creator_key=${encodeURIComponent(creatorKey)}`);
+      const url = `/api/posts/list?creator_key=${encodeURIComponent(creatorKey)}`;
+      const r = await fetch(url);
+
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`API ${r.status}: ${txt}`);
+      }
+
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "list_failed");
-      setPosts(j.records);
-      if (j.records?.length && !selectedId) setSelectedId(j.records[0].id);
+      if (!j.ok) throw new Error(j.details || j.error || "Unable to load drafts.");
+
+      const recs = (j.records || []) as Post[];
+      setPosts(recs);
+
+      // Keep selection stable
+      if (recs.length) {
+        if (!selectedId) setSelectedId(recs[0].id);
+        else if (!recs.some((p) => p.id === selectedId)) setSelectedId(recs[0].id);
+      } else {
+        setSelectedId(null);
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -59,7 +86,7 @@ export default function PublishPage() {
   useEffect(() => {
     if (selected) {
       setTitle(selected.title || "");
-      setPrivacyLevel(""); // force user selection each time
+      setPrivacyLevel("");
       setAllowComments(false);
       setAllowDuet(false);
       setAllowStitch(false);
@@ -68,217 +95,310 @@ export default function PublishPage() {
       setBrandThirdParty(false);
       setConsent(false);
     }
-  }, [selectedId]);
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canPublish =
     !!selected &&
     privacyLevel !== "" &&
     consent &&
-    (!commercial || (commercial && (brandSelf || brandThirdParty))); // if commercial turned on, require at least one checkbox
+    (!commercial || (commercial && (brandSelf || brandThirdParty)));
 
-async function publishNow() {
-  if (!selected) return;
+  async function publishNow() {
+    if (!selected) return;
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
-    const r = await fetch("/api/tiktok/publish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        post_record_id: selected.id,
-        creator_key: creatorKey, // ou creator_slug si tu as standardisé
-        // + tu peux envoyer les champs UX si tu veux:
-        title,
-        privacy_level: privacyLevel,
-        allow_comments: allowComments,
-        allow_duet: allowDuet,
-        allow_stitch: allowStitch,
-        commercial,
-        brand_self: brandSelf,
-        brand_third_party: brandThirdParty,
-      }),
-    });
+    try {
+      const r = await fetch("/api/tiktok/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_record_id: selected.id,
+          creator_key: creatorKey,
+          title,
+          privacy_level: privacyLevel,
+          allow_comments: allowComments,
+          allow_duet: allowDuet,
+          allow_stitch: allowStitch,
+          commercial,
+          brand_self: brandSelf,
+          brand_third_party: brandThirdParty,
+        }),
+      });
 
-    const j = await r.json();
-    if (!r.ok || !j.ok) throw new Error(j.details || j.error || "publish_failed");
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.details || j.error || "Publish failed.");
 
-    await load();
-    alert("Publish triggered. It may take a few minutes to appear on TikTok.");
-  } catch (e: any) {
-    setError(e?.message || String(e));
-  } finally {
-    setLoading(false);
+      await load();
+      alert("Publish triggered. It may take a few minutes to appear in TikTok.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
   }
-}
+
+  const pill = statusLabel(selected?.status);
 
   return (
-    <main style={{ maxWidth: 920, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 8 }}>Creator Dashboard (Audit MVP)</h1>
-      <p style={{ marginTop: 0, opacity: 0.8 }}>
-        Review a draft video, choose metadata, then publish to TikTok.
-      </p>
+    <main className="min-h-screen bg-black text-white">
+      <div className="mx-auto max-w-6xl px-6 py-10">
+        {/* Top bar */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-xs text-zinc-300">
+              <span className="h-2 w-2 rounded-full bg-[#FE2C55]" />
+              Creator Dashboard
+            </div>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight">Drafts</h1>
+            <p className="mt-2 text-zinc-400">
+              Preview your video, choose options, then publish.
+            </p>
+          </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-        <input
-          value={creatorKey}
-          readOnly
-          style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", width: 220 }}
-        />
-        <button onClick={load} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #000" }}>
-          Refresh drafts
-        </button>
-      </div>
-
-      {error && (
-        <div style={{ marginTop: 12, padding: 10, border: "1px solid #c00", borderRadius: 8 }}>
-          ❌ {error}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200">
+              City: <span className="font-semibold">{creatorKey}</span>
+            </div>
+            <button
+              onClick={() => router.push(`/?creator_key=${encodeURIComponent(creatorKey)}`)}
+              className="rounded-full border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-900"
+            >
+              Back
+            </button>
+            <button
+              onClick={load}
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
-      )}
 
-      {loading && <div style={{ marginTop: 12, opacity: 0.7 }}>Loading…</div>}
+        {/* Error */}
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            ❌ {error}
+          </div>
+        )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, marginTop: 16 }}>
-        <aside style={{ border: "1px solid #eee", borderRadius: 14, padding: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>Drafts</div>
-          {posts.length === 0 ? (
-            <div style={{ opacity: 0.7 }}>No draft posts for this city.</div>
-          ) : (
-            posts.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: 10,
-                  borderRadius: 12,
-                  border: p.id === selectedId ? "1px solid #000" : "1px solid #eee",
-                  background: "white",
-                  marginBottom: 8,
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{(p.title || "").slice(0, 60) || "(untitled)"}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>status: {p.status}</div>
-              </button>
-            ))
-          )}
-        </aside>
+        {/* Layout */}
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
+          {/* Sidebar drafts */}
+          <aside className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-white">Draft list</div>
+              <div className="text-xs text-zinc-400">{posts.length} item(s)</div>
+            </div>
 
-        <section style={{ border: "1px solid #eee", borderRadius: 14, padding: 12 }}>
-          {!selected ? (
-            <div style={{ opacity: 0.7 }}>Select a draft to review.</div>
-          ) : (
-            <>
-              <div style={{ fontWeight: 700, marginBottom: 10 }}>Preview</div>
-              <video
-                src={selected.video_url}
-                controls
-                style={{ width: "100%", borderRadius: 12, border: "1px solid #eee" }}
-              />
+            {loading && (
+              <div className="mt-4 text-sm text-zinc-400">Loading…</div>
+            )}
 
-              <div style={{ marginTop: 14, fontWeight: 700 }}>Post metadata</div>
-
-              <label style={{ display: "block", marginTop: 10, fontSize: 13, fontWeight: 600 }}>Title</label>
-              <textarea
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                rows={4}
-                style={{ width: "100%", borderRadius: 12, border: "1px solid #ddd", padding: 10 }}
-              />
-
-              <label style={{ display: "block", marginTop: 10, fontSize: 13, fontWeight: 600 }}>
-                Privacy level (no default)
-              </label>
-              <select
-                value={privacyLevel}
-                onChange={(e) => setPrivacyLevel(e.target.value)}
-                style={{ width: "100%", borderRadius: 12, border: "1px solid #ddd", padding: 10 }}
-              >
-                <option value="">Select…</option>
-                <option value="PUBLIC_TO_EVERYONE">Public</option>
-                <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
-                <option value="FOLLOWER_OF_CREATOR">Followers</option>
-                <option value="SELF_ONLY">Only me</option>
-              </select>
-
-              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="checkbox" checked={allowComments} onChange={(e) => setAllowComments(e.target.checked)} />
-                  Allow comments
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="checkbox" checked={allowDuet} onChange={(e) => setAllowDuet(e.target.checked)} />
-                  Allow duet
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input type="checkbox" checked={allowStitch} onChange={(e) => setAllowStitch(e.target.checked)} />
-                  Allow stitch
-                </label>
+            {!loading && posts.length === 0 && (
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/20 p-4 text-sm text-zinc-400">
+                No drafts for this city yet.
               </div>
+            )}
 
-              <div style={{ marginTop: 14, fontWeight: 700 }}>Commercial content</div>
-              <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-                <input type="checkbox" checked={commercial} onChange={(e) => setCommercial(e.target.checked)} />
-                This post promotes a brand/product/service
-              </label>
+            <div className="mt-4 space-y-2">
+              {posts.map((p) => {
+                const active = p.id === selectedId;
+                const sp = statusLabel(p.status);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedId(p.id)}
+                    className={[
+                      "w-full rounded-xl border px-3 py-3 text-left transition",
+                      active
+                        ? "border-zinc-700 bg-zinc-900"
+                        : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/40",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-white">
+                          {(p.title || "(untitled)").slice(0, 80)}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-400">
+                          {p.created_at ? `Created: ${p.created_at}` : "—"}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[11px] ${sp.cls}`}>
+                        {sp.text}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
 
-              {commercial && (
-                <div style={{ marginTop: 8, padding: 10, border: "1px solid #eee", borderRadius: 12 }}>
-                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="checkbox" checked={brandSelf} onChange={(e) => setBrandSelf(e.target.checked)} />
-                    Your brand
-                  </label>
-                  <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={brandThirdParty}
-                      onChange={(e) => setBrandThirdParty(e.target.checked)}
-                    />
-                    Branded content (third party)
-                  </label>
-                  <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-                    Note: If commercial content is enabled, select at least one option above to publish.
+          {/* Main panel */}
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+            {!selected ? (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 p-6 text-zinc-400">
+                Select a draft on the left to preview.
+              </div>
+            ) : (
+              <>
+                {/* Preview header */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Preview</div>
+                    <div className="mt-1 text-xs text-zinc-400">
+                      {selected.created_at ? `Created: ${selected.created_at}` : ""}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full border px-3 py-1 text-xs ${pill.cls}`}>
+                      {pill.text}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              <div style={{ marginTop: 14, padding: 10, border: "1px solid #eee", borderRadius: 12 }}>
-                <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                  <span style={{ fontSize: 13 }}>
-                    By posting, you agree to TikTok&apos;s Music Usage Confirmation. (And if branded content applies,
-                    you also agree to the Branded Content Policy.)
-                  </span>
-                </label>
-              </div>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-black">
+                  <video src={selected.video_url} controls className="w-full" />
+                </div>
 
-              <button
-                onClick={publishNow}
-                disabled={!canPublish}
-                style={{
-                  marginTop: 14,
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #000",
-                  background: canPublish ? "white" : "#f3f3f3",
-                  cursor: canPublish ? "pointer" : "not-allowed",
-                  fontWeight: 700,
-                }}
-              >
-                Publish to TikTok
-              </button>
+                {/* Form */}
+                <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  {/* Left: Title + toggles */}
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4">
+                    <div className="text-sm font-semibold">Caption</div>
+                    <textarea
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      rows={6}
+                      className="mt-3 w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#FE2C55]/40"
+                      placeholder="Write a caption…"
+                    />
 
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-                After publishing, it may take a few minutes for the post to be processed and visible on the TikTok
-                profile.
-              </div>
-            </>
-          )}
-        </section>
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <label className="flex items-center gap-2 text-sm text-zinc-200">
+                        <input
+                          type="checkbox"
+                          checked={allowComments}
+                          onChange={(e) => setAllowComments(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        Comments
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-zinc-200">
+                        <input
+                          type="checkbox"
+                          checked={allowDuet}
+                          onChange={(e) => setAllowDuet(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        Duet
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-zinc-200">
+                        <input
+                          type="checkbox"
+                          checked={allowStitch}
+                          onChange={(e) => setAllowStitch(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        Stitch
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Right: Privacy + compliance */}
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4">
+                    <div className="text-sm font-semibold">Post settings</div>
+
+                    <label className="mt-3 block text-sm text-zinc-200">Privacy</label>
+                    <select
+                      value={privacyLevel}
+                      onChange={(e) => setPrivacyLevel(e.target.value)}
+                      className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#FE2C55]/40"
+                    >
+                      <option value="">Select…</option>
+                      <option value="PUBLIC_TO_EVERYONE">Public</option>
+                      <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+                      <option value="FOLLOWER_OF_CREATOR">Followers</option>
+                      <option value="SELF_ONLY">Only me</option>
+                    </select>
+
+                    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                      <label className="flex items-center gap-2 text-sm text-zinc-200">
+                        <input
+                          type="checkbox"
+                          checked={commercial}
+                          onChange={(e) => setCommercial(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        This post is commercial content
+                      </label>
+
+                      {commercial && (
+                        <div className="mt-3 space-y-2 pl-1 text-sm text-zinc-200">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={brandSelf}
+                              onChange={(e) => setBrandSelf(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            Your brand
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={brandThirdParty}
+                              onChange={(e) => setBrandThirdParty(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            Third-party brand
+                          </label>
+                          <div className="text-xs text-zinc-400">
+                            If commercial content is enabled, select at least one option.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                      <label className="flex items-start gap-2 text-sm text-zinc-200">
+                        <input
+                          type="checkbox"
+                          checked={consent}
+                          onChange={(e) => setConsent(e.target.checked)}
+                          className="mt-1 h-4 w-4"
+                        />
+                        <span>
+                          I confirm I have the rights to use the audio/music in this video and agree to platform policies.
+                        </span>
+                      </label>
+                    </div>
+
+                    <button
+                      onClick={publishNow}
+                      disabled={!canPublish || loading}
+                      className={[
+                        "mt-4 w-full rounded-full px-5 py-3 text-sm font-semibold transition",
+                        canPublish && !loading
+                          ? "bg-[#FE2C55] text-white hover:bg-[#e02147]"
+                          : "bg-zinc-800 text-zinc-400 cursor-not-allowed",
+                      ].join(" ")}
+                    >
+                      {loading ? "Working…" : "Publish"}
+                    </button>
+
+                    <div className="mt-3 text-xs text-zinc-500">
+                      Publishing can take a few minutes to appear in TikTok.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );

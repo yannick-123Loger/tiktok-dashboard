@@ -1,138 +1,202 @@
 // src/pages/index.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
-export default function Dashboard() {
+type Creator = {
+  key: string;   // ex: "toulouse"
+  city: string;  // ex: "Toulouse"
+  name: string;  // ex: "Margaux"
+};
+
+const CREATORS: Creator[] = [
+  { key: "toulouse", city: "Toulouse", name: "Margaux" },
+  // Tu pourras ajouter Paris/Marseille etc plus tard
+];
+
+export default function Home() {
   const router = useRouter();
 
-  const [selectedCreatorKey, setSelectedCreatorKey] = useState("toulouse");
-  const [isConnected, setIsConnected] = useState(false);
+  const [selected, setSelected] = useState(CREATORS[0].key);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
-  const connected = router.query.connected === "1";
+  const creatorKey = selected;
 
-  const oauthError =
-    typeof router.query.error === "string" ? router.query.error : null;
-
-  const connectedCreatorKey = useMemo(() => {
-    const v = router.query.creator_key;
-    return typeof v === "string" ? v : null;
-  }, [router.query.creator_key]);
-
-  // si on arrive du callback avec creator_key, on le met dans le select
   useEffect(() => {
-    if (connectedCreatorKey) {
-      setSelectedCreatorKey(connectedCreatorKey);
-    }
-  }, [connectedCreatorKey]);
-
-  // check Airtable status pour la ville sélectionnée
-  useEffect(() => {
-    async function checkStatus() {
+    async function check() {
+      setStatusLoading(true);
+      setStatusError(null);
       try {
-        const r = await fetch(
-          `/api/creator-status?creator_key=${encodeURIComponent(
-            selectedCreatorKey
-          )}`
-        );
-        const data = await r.json();
-        setIsConnected(!!data?.is_connected);
-      } catch {
-        setIsConnected(false);
+        const r = await fetch(`/api/creator-status?creator_key=${encodeURIComponent(creatorKey)}`);
+        const j = await r.json();
+        setIsConnected(!!j.is_connected);
+      } catch (e: any) {
+        setStatusError(e?.message || "Failed to load status");
+      } finally {
+        setStatusLoading(false);
       }
     }
+    check();
+  }, [creatorKey]);
 
-    checkStatus();
-  }, [selectedCreatorKey]);
+  const goDrafts = () => router.push(`/publish?creator_key=${encodeURIComponent(creatorKey)}`);
 
   return (
-    <main style={{ maxWidth: 720, margin: "40px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 8 }}>
-        Creator Dashboard (Audit MVP)
-      </h1>
-      <p style={{ marginTop: 0, opacity: 0.8 }}>
-        Select a city account, connect TikTok, then review & publish posts
-        manually.
-      </p>
-
-      {connected && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 10,
-            border: "1px solid #0a0",
-            borderRadius: 8,
-          }}
-        >
-          ✅ TikTok connected for <b>{connectedCreatorKey ?? "this city"}</b>
-        </div>
-      )}
-
-      {oauthError && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 10,
-            border: "1px solid #a00",
-            borderRadius: 8,
-          }}
-        >
-          ❌ OAuth error: <b>{oauthError}</b>
-        </div>
-      )}
-
-      <div style={{ marginTop: 18 }}>
-        <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-          City account
-        </label>
-
-        <select
-          value={selectedCreatorKey}
-          onChange={(e) => setSelectedCreatorKey(e.target.value)}
-          style={{ padding: 10, borderRadius: 10, border: "1px solid #000" }}
-        >
-          <option value="toulouse">Toulouse — Margaux</option>
-          {/* plus tard: paris, marseille, etc */}
-        </select>
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        {isConnected ? (
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div>✅ Already connected</div>
-
-            <a
-              href={`/api/oauth/start?creator_key=${encodeURIComponent(
-                selectedCreatorKey
-              )}`}
-              style={{
-                display: "inline-block",
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #000",
-                textDecoration: "none",
-                fontWeight: 600,
-              }}
-            >
-              Reconnect
-            </a>
+    <main className="min-h-screen bg-black text-white">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-xs text-zinc-300">
+              <span className="h-2 w-2 rounded-full bg-[#FE2C55]" />
+              Creator Dashboard
+            </div>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight">City accounts</h1>
+            <p className="mt-2 max-w-xl text-zinc-400">
+              Connect a city creator account, review drafts, and publish videos.
+            </p>
           </div>
-        ) : (
-          <a
-            href={`/api/oauth/start?creator_key=${encodeURIComponent(
-              selectedCreatorKey
-            )}`}
-            style={{
-              display: "inline-block",
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid #000",
-              textDecoration: "none",
-              fontWeight: 600,
-            }}
-          >
-            Continue with TikTok
-          </a>
-        )}
+
+          <div className="hidden sm:block">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
+              <div className="font-semibold text-white">Quick tips</div>
+              <div className="mt-1 text-zinc-400">
+                Use the drafts page to preview the video and set post options.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card */}
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Selector */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="text-sm font-semibold">City account</div>
+            <p className="mt-1 text-sm text-zinc-400">Choose a creator profile.</p>
+
+            <div className="mt-4 space-y-2">
+              {CREATORS.map((c) => {
+                const active = c.key === selected;
+                return (
+                  <button
+                    key={c.key}
+                    onClick={() => setSelected(c.key)}
+                    className={[
+                      "w-full rounded-xl border px-4 py-3 text-left transition",
+                      active
+                        ? "border-zinc-700 bg-zinc-900"
+                        : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/40",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold">{c.city}</div>
+                        <div className="text-xs text-zinc-400">{c.name}</div>
+                      </div>
+                      <div className="text-xs text-zinc-500">{c.key}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-zinc-300">Connection status</div>
+                {statusLoading ? (
+                  <span className="text-zinc-400">Loading…</span>
+                ) : (
+                  <span
+                    className={[
+                      "rounded-full px-2 py-1 text-xs",
+                      isConnected ? "bg-green-500/15 text-green-300" : "bg-zinc-800 text-zinc-300",
+                    ].join(" ")}
+                  >
+                    {isConnected ? "Connected" : "Not connected"}
+                  </span>
+                )}
+              </div>
+
+              {statusError && <div className="mt-2 text-xs text-red-300">❌ {statusError}</div>}
+
+              <div className="mt-4 flex gap-3">
+                {isConnected ? (
+                  <>
+                    <button
+                      onClick={goDrafts}
+                      className="flex-1 rounded-full bg-[#FE2C55] px-4 py-3 text-sm font-semibold hover:bg-[#e02147]"
+                    >
+                      Open drafts
+                    </button>
+                    <button
+                      onClick={() => router.push(`/api/oauth/start?creator_key=${encodeURIComponent(creatorKey)}`)}
+                      className="rounded-full border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-200 hover:bg-zinc-900"
+                    >
+                      Reconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => router.push(`/api/oauth/start?creator_key=${encodeURIComponent(creatorKey)}`)}
+                    className="w-full rounded-full bg-[#FE2C55] px-4 py-3 text-sm font-semibold hover:bg-[#e02147]"
+                  >
+                    Connect account
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Preview card */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 lg:col-span-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">What you can do</div>
+                <div className="mt-1 text-sm text-zinc-400">
+                  Review drafts, update metadata, and publish manually.
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-400">
+                <span className="h-2 w-2 rounded-full bg-zinc-600" />
+                Ready
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {[
+                { title: "Select account", desc: "Pick a city creator profile." },
+                { title: "Review draft", desc: "Preview the video and edit text." },
+                { title: "Publish", desc: "Choose options and post manually." },
+              ].map((b) => (
+                <div key={b.title} className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4">
+                  <div className="text-sm font-semibold">{b.title}</div>
+                  <div className="mt-1 text-sm text-zinc-400">{b.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-5">
+              <div className="text-sm font-semibold">Selected</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm">{creatorKey}</span>
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm">
+                  {CREATORS.find((c) => c.key === creatorKey)?.name ?? "—"}
+                </span>
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm">
+                  {isConnected ? "Connected" : "Not connected"}
+                </span>
+              </div>
+
+              <button
+                onClick={goDrafts}
+                className="mt-4 rounded-full border border-zinc-700 bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-900"
+              >
+                Go to drafts →
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );
