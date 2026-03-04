@@ -73,6 +73,32 @@ const title = post.fields.title || "Draft from dashboard";
 
     const initJson = JSON.parse(initTxt);
 
+    // après: const initJson = JSON.parse(initTxt);
+
+const publishId =
+  initJson?.data?.publish_id ||
+  initJson?.data?.publishId ||
+  null;
+
+if (!publishId) {
+  await updatePost(post_record_id, { status: "failed" });
+  return res.status(502).json({
+    ok: false,
+    error: "tiktok_init_missing_publish_id",
+    body: initJson,
+  });
+}
+
+// Persiste dans Airtable
+await updatePost(post_record_id, {
+  tiktok_publish_id: String(publishId),
+  status: "publishing",
+});
+
+return res.status(200).json({
+  ok: true,
+  publish_id: publishId,
+});
     // TODO: ici tu dois récupérer publish_id / upload_url / etc selon la réponse
     // et les enregistrer dans Airtable (tiktok_publish_id + status "uploading")
     // puis lancer la suite (pull ou upload completion)
