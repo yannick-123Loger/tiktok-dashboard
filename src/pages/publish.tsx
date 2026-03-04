@@ -28,23 +28,31 @@ export default function PublishPage() {
     return typeof q === "string" && q.length ? q : "toulouse";
   }, [router.query.creator_key]);
 
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const [posts, setPosts] = useState<Post[]>([]);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = posts.find((p) => p.id === selectedId) || null;
+const [selectedId, setSelectedId] = useState<string | null>(null);
+const selected = posts.find((p) => p.id === selectedId) || null;
 
-  // Form state
-  const [title, setTitle] = useState("");
-  const [privacyLevel, setPrivacyLevel] = useState<string>(""); // no default
-  const [allowComments, setAllowComments] = useState(false);
-  const [allowDuet, setAllowDuet] = useState(false);
-  const [allowStitch, setAllowStitch] = useState(false);
-  const [commercial, setCommercial] = useState(false);
-  const [brandSelf, setBrandSelf] = useState(false);
-  const [brandThirdParty, setBrandThirdParty] = useState(false);
-  const [consent, setConsent] = useState(false);
+// Form state
+const [title, setTitle] = useState("");
+const [privacyLevel, setPrivacyLevel] = useState<string>("SELF_ONLY"); // locked for audit
+
+const [allowComments, setAllowComments] = useState(false);
+const [allowDuet, setAllowDuet] = useState(false);
+const [allowStitch, setAllowStitch] = useState(false);
+
+const [commercial, setCommercial] = useState(false);
+const [brandSelf, setBrandSelf] = useState(false);
+const [brandThirdParty, setBrandThirdParty] = useState(false);
+
+const [consent, setConsent] = useState(false);
+
+const canPublish =
+  !!selected &&
+  consent &&
+  (!commercial || (brandSelf || brandThirdParty));
 
   async function load() {
     setLoading(true);
@@ -53,10 +61,12 @@ export default function PublishPage() {
       const url = `/api/posts/list?creator_key=${encodeURIComponent(creatorKey)}`;
       const r = await fetch(url);
 
-      if (!r.ok) {
-        const txt = await r.text();
-        throw new Error(`API ${r.status}: ${txt}`);
-      }
+if (!r.ok) {
+  // garder la trace côté console (toi), mais message clean côté UI
+  const txt = await r.text();
+  console.error("posts:list failed", r.status, txt);
+  throw new Error("Unable to load drafts right now. Please try again.");
+}
 
       const j = await r.json();
       if (!j.ok) throw new Error(j.details || j.error || "Unable to load drafts.");
@@ -96,12 +106,6 @@ export default function PublishPage() {
       setConsent(false);
     }
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const canPublish =
-    !!selected &&
-    privacyLevel !== "" &&
-    consent &&
-    (!commercial || (commercial && (brandSelf || brandThirdParty)));
 
   async function publishNow() {
     if (!selected) return;
@@ -312,19 +316,19 @@ export default function PublishPage() {
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4">
                     <div className="text-sm font-semibold">Post settings</div>
 
-                    <label className="mt-3 block text-sm text-zinc-200">Privacy</label>
-                    <select
-                      value={privacyLevel}
-                      onChange={(e) => setPrivacyLevel(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#FE2C55]/40"
-                    >
-                      <option value="">Select…</option>
-                      <option value="PUBLIC_TO_EVERYONE">Public</option>
-                      <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
-                      <option value="FOLLOWER_OF_CREATOR">Followers</option>
-                      <option value="SELF_ONLY">Only me</option>
-                    </select>
+                      <label className="mt-3 block text-sm text-zinc-200">Privacy</label>
 
+                      <select
+                            value="SELF_ONLY"
+                            disabled
+                            className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm text-white opacity-80"
+                            >
+                           <option value="SELF_ONLY">Only me</option>
+                          </select>
+
+                        <div className="mt-2 text-xs text-zinc-500">
+                          During review, publishing is limited to private visibility.
+                          </div>
                     <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
                       <label className="flex items-center gap-2 text-sm text-zinc-200">
                         <input
