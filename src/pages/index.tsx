@@ -9,7 +9,8 @@ type Creator = {
 };
 
 const CREATORS: Creator[] = [
-  { key: "toulouse", city: "Toulouse", name: "Margaux" },
+  { city: "Toulouse",key: "toulouse", name: "Margaux" },
+  { key: "marseille", city: "Marseille", name: "Mehdi" }
   // Tu pourras ajouter Paris/Marseille etc plus tard
 ];
 
@@ -52,9 +53,9 @@ export default function Home() {
               <span className="h-2 w-2 rounded-full bg-[#FE2C55]" />
               Creator Dashboard
             </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight">City accounts</h1>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight">Creator accounts</h1>
             <p className="mt-2 max-w-xl text-zinc-400">
-              Connect a city creator account, review drafts, and publish videos.
+              Connect a Tiktok account, review drafts, and publish videos.
             </p>
           </div>
 
@@ -72,7 +73,7 @@ export default function Home() {
         <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Selector */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-            <div className="text-sm font-semibold">City account</div>
+            <div className="text-sm font-semibold">Creator account</div>
             <p className="mt-1 text-sm text-zinc-400">Choose a creator profile.</p>
 
             <div className="mt-4 space-y-2">
@@ -89,14 +90,10 @@ export default function Home() {
                         : "border-zinc-900 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/40",
                     ].join(" ")}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{c.city}</div>
-                        <div className="text-xs text-zinc-400">{c.name}</div>
-                      </div>
-                      <div className="text-xs text-zinc-500">{c.key}</div>
-                    </div>
-                  </button>
+<div>
+  <div className="font-semibold text-white">{c.name}</div>
+  <div className="mt-1 text-xs text-zinc-400">{c.city}</div>
+</div>                  </button>
                 );
               })}
             </div>
@@ -165,7 +162,7 @@ export default function Home() {
 
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
               {[
-                { title: "Select account", desc: "Pick a city creator profile." },
+                { title: "Select account", desc: "Pick a TikTok account profile." },
                 { title: "Review draft", desc: "Preview the video and edit text." },
                 { title: "Publish", desc: "Choose options and post manually." },
               ].map((b) => (
