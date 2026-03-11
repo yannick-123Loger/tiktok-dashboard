@@ -5,7 +5,11 @@ export type AirtableRecord<T> = {
 };
 
 export type CreatorFields = {
-  creator_key: string;          // ex: "toulouse"
+  creator_key: string;
+  creator_city?: string;
+  creator_name?: string;
+  tiktok_name?: string;
+
   open_id?: string;
   access_token?: string;
   refresh_token?: string;
